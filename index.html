@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes, viewport-fit=cover">
+<meta name="theme-color" content="#5b21b6">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Dutra 3D">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Calculadora Irmãos Dutra 3D</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;background:#f6f6fb;color:#27272a}
+button,input,select{font-family:Arial,Helvetica,sans-serif;font-size:16px}
+.app{max-width:900px;margin:0 auto;min-height:100vh}
+.hero{background:linear-gradient(135deg,#6d28d9,#3b176f);color:#fff;padding:16px}
+.hero-wrap{display:flex;align-items:center;gap:14px}
+.logo{width:92px;height:auto;display:block}
+.hero h1{margin:0;font-size:26px;line-height:1.1}
+.hero p{margin:5px 0 0;font-size:16px;opacity:.9}
+.tabs{display:flex;background:#fff;border-bottom:1px solid #ddd}
+.tab{width:50%;padding:16px 8px;border:0;background:#fff;color:#6b7280;font-weight:bold;border-bottom:3px solid transparent;cursor:pointer;touch-action:manipulation}
+.tab.active{color:#6d28d9;border-bottom-color:#6d28d9}
+.content{padding:12px}
+.panel{display:none}
+.panel.active{display:block}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:16px;margin-bottom:14px;box-shadow:0 6px 18px rgba(0,0,0,.06)}
+.title{font-size:18px;font-weight:bold;color:#6d28d9;margin-bottom:14px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field{display:block}
+.field.full{grid-column:1/-1}
+label{display:block;font-size:14px;font-weight:bold;margin-bottom:7px}
+.inputbox{display:flex;align-items:center;min-height:50px;border:1px solid #d1d5db;border-radius:12px;padding:0 12px;background:#fff}
+.inputbox input{border:0;outline:none;width:100%;min-width:0;background:transparent}
+.unit{margin-left:8px;color:#6b7280;font-weight:bold;white-space:nowrap}
+select{width:100%;height:50px;border:1px solid #d1d5db;border-radius:12px;background:#fff;padding:0 10px}
+.primary{display:block;width:100%;min-height:54px;margin-top:14px;border:0;border-radius:12px;background:#6d28d9;color:white;font-weight:bold;cursor:pointer;touch-action:manipulation}
+.secondary{min-height:48px;border:1px solid #d1d5db;border-radius:10px;background:#fff;padding:0 14px;font-weight:bold;cursor:pointer;touch-action:manipulation}
+.result{border-color:#bbf7d0;background:#f0fdf4}
+.price-label{font-size:14px;color:#52525b}
+.price{font-size:42px;font-weight:900;color:#16a34a;margin-top:4px;line-height:1}
+.pergram{display:inline-block;margin-top:9px;background:#dcfce7;color:#15803d;padding:6px 9px;border-radius:8px;font-weight:bold;font-size:14px}
+.badge{display:inline-block;background:#16a34a;color:#fff;padding:7px 9px;border-radius:8px;font-weight:bold;margin-top:12px}
+.metrics{margin-top:10px;font-size:14px;line-height:1.6}
+.row{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #eee}
+.row:last-child{border-bottom:0}
+.total{font-weight:bold;color:#6d28d9}
+.info{margin-top:13px;padding:11px;border-radius:10px;background:#eff6ff;color:#1e3a8a;font-size:13px;line-height:1.4}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.status{font-size:13px;color:#6b7280;margin-top:10px;min-height:18px}
+.install-box{display:none;margin-bottom:14px;padding:12px 14px;border-radius:12px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412}
+.install-box button{margin-top:8px;border:0;border-radius:9px;padding:10px 12px;background:#ea580c;color:#fff;font-weight:bold}
+@media(max-width:620px){
+  .grid{grid-template-columns:1fr}
+  .field.full{grid-column:auto}
+  .hero h1{font-size:23px}
+  .logo{width:80px}
+  .price{font-size:38px}
+}
+</style>
+<script>
+var DEFAULTS = {
+  precoFilamento:94,
+  precoKwh:1,
+  consumo:100,
+  perda:10,
+  multiplicador:5
+};
+
+var deferredPrompt = null;
+
+function el(id){ return document.getElementById(id); }
+
+function numero(id){
+  var v = parseFloat(el(id).value);
+  if(isNaN(v) || v < 0){ return 0; }
+  return v;
+}
+
+function dinheiro(v){
+  if(isNaN(v) || !isFinite(v)){ v = 0; }
+  return "R$ " + v.toFixed(2).replace(".",",");
+}
+
+function mostrarAba(nome){
+  el("calculo").className = "panel";
+  el("config").className = "panel";
+  el("btnCalculo").className = "tab";
+  el("btnConfig").className = "tab";
+  el(nome).className = "panel active";
+  if(nome === "calculo"){
+    el("btnCalculo").className = "tab active";
+  }else{
+    el("btnConfig").className = "tab active";
+  }
+  window.scrollTo(0,0);
+}
+
+function calcular(){
+  var peso = numero("peso");
+  var horas = numero("horas");
+  var precoFilamento = numero("precoFilamento");
+  var precoKwh = numero("precoKwh");
+  var consumo = numero("consumo");
+  var perda = numero("perda");
+  var multiplicador = numero("multiplicador");
+
+  if(perda > 100){ perda = 100; }
+  if(multiplicador < 1){ multiplicador = 1; }
+
+  var custoFilamento = peso * (precoFilamento / 1000);
+  var custoPerda = custoFilamento * (perda / 100);
+  var custoEnergia = ((consumo / 1000) * horas) * precoKwh;
+  var custoTotal = custoFilamento + custoPerda + custoEnergia;
+  var precoFinal = custoTotal * multiplicador;
+  var precoGrama = peso > 0 ? precoFinal / peso : 0;
+  var lucro = precoFinal - custoTotal;
+
+  el("precoFinal").innerHTML = dinheiro(precoFinal);
+  el("precoGrama").innerHTML = dinheiro(precoGrama) + " por grama";
+  el("badge").innerHTML = "Multiplicador: " + multiplicador + "x";
+  el("custoFilamento").innerHTML = dinheiro(custoFilamento);
+  el("custoPerda").innerHTML = dinheiro(custoPerda);
+  el("custoEnergia").innerHTML = dinheiro(custoEnergia);
+  el("custoTotal").innerHTML = dinheiro(custoTotal);
+  el("custoTotalMini").innerHTML = dinheiro(custoTotal);
+  el("lucro").innerHTML = dinheiro(lucro);
+  el("perdaLabel").innerHTML = "Perdas (" + perda + "%)";
+}
+
+function salvar(){
+  var cfg = {
+    precoFilamento:numero("precoFilamento"),
+    precoKwh:numero("precoKwh"),
+    consumo:numero("consumo"),
+    perda:numero("perda"),
+    multiplicador:numero("multiplicador")
+  };
+
+  try{
+    localStorage.setItem("irmaosDutra3DConfig", JSON.stringify(cfg));
+    el("status").innerHTML = "Configurações salvas neste dispositivo.";
+  }catch(e){
+    el("status").innerHTML = "Configurações aplicadas nesta sessão.";
+  }
+  calcular();
+}
+
+function restaurar(){
+  el("precoFilamento").value = DEFAULTS.precoFilamento;
+  el("precoKwh").value = DEFAULTS.precoKwh;
+  el("consumo").value = DEFAULTS.consumo;
+  el("perda").value = DEFAULTS.perda;
+  el("multiplicador").value = DEFAULTS.multiplicador;
+  salvar();
+  el("status").innerHTML = "Configurações padrão restauradas.";
+}
+
+function carregar(){
+  try{
+    var s = localStorage.getItem("irmaosDutra3DConfig");
+    if(s){
+      var c = JSON.parse(s);
+      if(c.precoFilamento !== undefined){ el("precoFilamento").value = c.precoFilamento; }
+      if(c.precoKwh !== undefined){ el("precoKwh").value = c.precoKwh; }
+      if(c.consumo !== undefined){ el("consumo").value = c.consumo; }
+      if(c.perda !== undefined){ el("perda").value = c.perda; }
+      if(c.multiplicador !== undefined){ el("multiplicador").value = c.multiplicador; }
+    }
+  }catch(e){}
+  calcular();
+
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('./service-worker.js').catch(function(){});
+  }
+}
+
+window.addEventListener('beforeinstallprompt', function(e){
+  e.preventDefault();
+  deferredPrompt = e;
+  el('installBox').style.display = 'block';
+});
+
+function instalarApp(){
+  if(!deferredPrompt){
+    el('installMsg').innerHTML = 'No iPhone: toque em Compartilhar e depois em "Adicionar à Tela de Início".';
+    el('installBox').style.display = 'block';
+    return;
+  }
+
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.then(function(){
+    deferredPrompt = null;
+    el('installBox').style.display = 'none';
+  });
+}
+</script>
+</head>
+<body onload="carregar()">
+<div class="app">
+
+<header class="hero">
+  <div class="hero-wrap">
+    <img class="logo" alt="Irmãos Dutra 3D" src="logo.png">
+    <div>
+      <h1>Calculadora de Preços</h1>
+      <p>Impressão 3D</p>
+    </div>
+  </div>
+</header>
+
+<div class="tabs">
+  <button id="btnCalculo" class="tab active" type="button" onclick="mostrarAba('calculo')">CÁLCULO</button>
+  <button id="btnConfig" class="tab" type="button" onclick="mostrarAba('config')">CONFIGURAÇÕES</button>
+</div>
+
+<div class="content">
+
+<div id="installBox" class="install-box">
+  <div id="installMsg"><strong>Instale como aplicativo</strong><br>Você pode adicionar esta calculadora à tela inicial.</div>
+  <button type="button" onclick="instalarApp()">INSTALAR APP</button>
+</div>
+
+<section id="calculo" class="panel active">
+  <div class="card">
+    <div class="title">⬡ Dados da Peça</div>
+    <div class="grid">
+      <div class="field">
+        <label for="peso">Peso da peça</label>
+        <div class="inputbox">
+          <input id="peso" type="number" value="100" min="0" step="0.1" inputmode="decimal" oninput="calcular()">
+          <span class="unit">g</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="horas">Tempo de impressão</label>
+        <div class="inputbox">
+          <input id="horas" type="number" value="5" min="0" step="0.1" inputmode="decimal" oninput="calcular()">
+          <span class="unit">h</span>
+        </div>
+      </div>
+    </div>
+
+    <button class="primary" type="button" onclick="calcular()">CALCULAR PREÇO</button>
+  </div>
+
+  <div class="card result">
+    <div class="price-label">Preço para cobrar do cliente</div>
+    <div id="precoFinal" class="price">R$ 0,00</div>
+    <div id="precoGrama" class="pergram">R$ 0,00 por grama</div>
+    <br>
+    <div id="badge" class="badge">Multiplicador: 5x</div>
+    <div class="metrics">
+      Custo total: <strong id="custoTotalMini">R$ 0,00</strong><br>
+      Lucro bruto: <strong id="lucro" style="color:#16a34a">R$ 0,00</strong>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="title">◔ Resumo de Custos</div>
+    <div class="row"><span>Filamento (material)</span><strong id="custoFilamento">R$ 0,00</strong></div>
+    <div class="row"><span id="perdaLabel">Perdas (10%)</span><strong id="custoPerda">R$ 0,00</strong></div>
+    <div class="row"><span>Energia elétrica</span><strong id="custoEnergia">R$ 0,00</strong></div>
+    <div class="row total"><span>Custo total estimado</span><strong id="custoTotal">R$ 0,00</strong></div>
+    <div class="info">O valor sugerido já considera filamento, perdas e energia elétrica.</div>
+  </div>
+</section>
+
+<section id="config" class="panel">
+  <div class="card">
+    <div class="title">⚙ Configurações</div>
+    <div class="grid">
+      <div class="field">
+        <label for="precoFilamento">Preço do filamento (1 kg)</label>
+        <div class="inputbox">
+          <span class="unit" style="margin:0 8px 0 0">R$</span>
+          <input id="precoFilamento" type="number" value="94" min="0" step="0.01" inputmode="decimal" oninput="calcular()">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="precoKwh">Preço da energia</label>
+        <div class="inputbox">
+          <span class="unit" style="margin:0 8px 0 0">R$</span>
+          <input id="precoKwh" type="number" value="1" min="0" step="0.01" inputmode="decimal" oninput="calcular()">
+          <span class="unit">/kWh</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="consumo">Consumo médio</label>
+        <div class="inputbox">
+          <input id="consumo" type="number" value="100" min="0" step="1" inputmode="numeric" oninput="calcular()">
+          <span class="unit">W</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="perda">Perda de material</label>
+        <div class="inputbox">
+          <input id="perda" type="number" value="10" min="0" max="100" step="1" inputmode="numeric" oninput="calcular()">
+          <span class="unit">%</span>
+        </div>
+      </div>
+
+      <div class="field full">
+        <label for="multiplicador">Multiplicador de venda</label>
+        <select id="multiplicador" onchange="calcular()">
+          <option value="2">2x</option>
+          <option value="3">3x</option>
+          <option value="4">4x</option>
+          <option value="5" selected>5x</option>
+          <option value="6">6x</option>
+          <option value="7">7x</option>
+          <option value="8">8x</option>
+          <option value="10">10x</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="primary" style="margin-top:0" type="button" onclick="salvar()">SALVAR CONFIGURAÇÕES</button>
+      <button class="secondary" type="button" onclick="restaurar()">Restaurar padrão</button>
+    </div>
+
+    <div id="status" class="status"></div>
+  </div>
+</section>
+
+</div>
+</div>
+</body>
+</html>
